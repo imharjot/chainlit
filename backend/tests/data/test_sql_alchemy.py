@@ -11,7 +11,6 @@ from chainlit import User
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.data.storage_clients.base import BaseStorageClient
 from chainlit.element import Text
-from chainlit.step import StepDict
 from chainlit.types import Feedback, Pagination, ThreadFilter
 
 
@@ -65,7 +64,7 @@ async def data_layer(mock_storage_client: BaseStorageClient, tmp_path: Path):
                     "type" TEXT NOT NULL,
                     "threadId" UUID NOT NULL,
                     "parentId" UUID,
-                    "disableFeedback" BOOLEAN NOT NULL DEFAULT FALSE,
+                    "disableFeedback" BOOLEAN NOT NULL,
                     "streaming" BOOLEAN NOT NULL,
                     "waitForAnswer" BOOLEAN,
                     "isError" BOOLEAN,
@@ -247,16 +246,26 @@ async def feedback_threads_user_id(
                 user_id=other_user.id if thread_id == "other_user" else user.id,
             )
             step_id = f"{thread_id}_step"
-            await data_layer.create_step(
-                StepDict(
-                    id=step_id,
-                    threadId=thread_id,
-                    name="Assistant",
-                    type="assistant_message",
-                    streaming=False,
-                    output=output,
-                    createdAt=f"2026-01-{day:02d}T00:00:00Z",
+            await data_layer.execute_sql(
+                """
+                INSERT INTO steps (
+                    "id", "threadId", "name", "type", "disableFeedback",
+                    "streaming", "output", "createdAt"
+                ) VALUES (
+                    :id, :thread_id, :name, :type, :disable_feedback,
+                    :streaming, :output, :created_at
                 )
+                """,
+                {
+                    "id": step_id,
+                    "thread_id": thread_id,
+                    "name": "Assistant",
+                    "type": "assistant_message",
+                    "disable_feedback": False,
+                    "streaming": False,
+                    "output": output,
+                    "created_at": f"2026-01-{day:02d}T00:00:00Z",
+                },
             )
             assert await data_layer.get_step(step_id) is not None
             if feedback is not None:
